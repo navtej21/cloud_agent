@@ -6,6 +6,8 @@ import subprocess
 APP_ID = "4556123"  # your App ID
 PRIVATE_KEY_PATH = "navtej-cloud-agent-dev.2026-08-11.private-key.pem"  # adjust to your actual filename
 
+
+## create a jwt token 
 def create_jwt():
     with open(PRIVATE_KEY_PATH, "r") as key_file:
         private_key = key_file.read()
@@ -23,6 +25,8 @@ def create_jwt():
 
 
 
+
+##create a installtion token 
 
 
 def get_installation_token():
@@ -44,6 +48,7 @@ def get_installation_token():
         return data["token"],data["expires_at"]
     else:
         raise Exception(f"Failed to get installation token")
+
 
 
 def clone_repo(token,repo_full_name,destination):

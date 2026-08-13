@@ -8,6 +8,12 @@ from write_tool import write_file_tool
 from bash_tool import bash_tool
 from bash_tool import bash_file_tool
 from edit_file_tool import *
+
+
+from github_auth import clone_repo,get_installation_token
+
+
+
 # 1. Tell Claude what tool is available
 read_file_tool = {
     "name": "read_file",
@@ -38,6 +44,13 @@ def read_file(path):
 
 
 
+token,expires_at=get_installation_token()
+clone_result=clone_repo(token,"navtej21/QuickNotesAI","cloned_repo")
+
+
+print("token",token)
+print("expires_at",expires_at)
+print("clone_result",clone_result)
 # 3. Keep track of the conversation
 
 task=input("Enter The Task:")
@@ -47,6 +60,7 @@ messages = [
         "content": task
     }
 ]
+
 
 
 # 4. Agent loop
