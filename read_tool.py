@@ -10,8 +10,7 @@ from bash_tool import bash_file_tool
 from edit_file_tool import *
 
 
-from github_auth import clone_repo,get_installation_token
-
+from github_auth import clone_repo,get_installation_token,push_repo,pull_repo
 
 
 # 1. Tell Claude what tool is available
@@ -166,4 +165,13 @@ while True:
                     messages.append({
                         "role": "user",
                         "content": [{"type": "tool_result","tool_use_id": block.id,"content": result}]})
-                    
+
+
+
+# ## push the results
+# push_result = push_repo(repo_path="cloned_repo",repo_full_name="navtej21/QuickNotesAI",token=token, branch="agent-changes")
+# print("push_result:",push_result)
+
+## pull the requests
+pr_result = pull_repo(token=token, repo_full_name="navtej21/QuickNotesAI", branch="agent-changes", title="Automated agent change", body="Made via agent")
+print("PR result:", pr_result)

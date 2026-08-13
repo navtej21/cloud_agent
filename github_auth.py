@@ -2,6 +2,7 @@ import jwt
 import time
 import requests
 import subprocess
+import requests
 
 APP_ID = "4556123"  # your App ID
 PRIVATE_KEY_PATH = "navtej-cloud-agent-dev.2026-08-11.private-key.pem"  # adjust to your actual filename
@@ -69,3 +70,59 @@ if __name__=="__main__":
 
     result=clone_repo(token,"navtej21/QuickNotesAI","myquicknotes")
     print(result)
+
+
+
+def push_repo(repo_path,token,repo_full_name,branch="main"):
+    try:
+
+        subprocess.run(["git", "-C", repo_path, "config", "user.email", "agent@cloud-agent.dev"], check=True)
+        subprocess.run(["git", "-C", repo_path, "config", "user.name", "Cloud Agent"], check=True)
+        subprocess.run(["git","-C",repo_path,"checkout","-b",branch],check=True)
+        subprocess.run(["git","-C",repo_path,"add","."],check=True)
+        subprocess.run(["git","-C",repo_path,"commit","-m","Automated change by agent"],check=True)
+
+
+        remote_url=subprocess.run(
+            ["git","-C",repo_path,"remote","get-url","origin"],
+            capture_output=True,
+            text=True,
+            check=True
+        ).stdout.strip()
+
+
+        authed_url=f"https://x-access-token:{token}@github.com/{repo_full_name}.git"
+        subprocess.run(["git", "-C", repo_path, "push", authed_url, branch], check=True)
+        return "Successfully pushed changes"
+    except subprocess.CalledProcessError as e:
+        return f"Push Failed:{e}"
+
+
+
+
+def pull_repo(token,repo_full_name,branch,title,body):
+
+    url=f"https://api.github.com/repos/{repo_full_name}/pulls"
+    headers={
+        "Authorization":f"Bearer {token}",
+       "Accept": "application/vnd.github+json"
+    }
+
+    data={
+        "title":title,
+        "body":body,
+        "base":"master",
+        "head":branch
+    }
+
+    response=requests.post(url,headers=headers,json=data)
+
+    if (response.status_code==201):
+        return response.json()["html_url"]
+    else:
+        return f"PR creation failed: {response.status_code} {response.text}"
+
+
+
+
+
