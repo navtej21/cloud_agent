@@ -67,12 +67,13 @@ def process_message(message_id,fields):
                     "tool_call_id": tool_call_id,
                     "result": result
                 })
-                
+
+
+    ## add inside the set            
     r.sadd(PROCESSED_SET_KEY,tool_call_id)
 
-    time.sleep(10)
     
-                # Acknowledge this message as processed
+    # Acknowledge this message as processed
     r.xack(STREAM_REQUESTS, GROUP_NAME, message_id)
     
     print(f"Result sent back for {tool_call_id}")
