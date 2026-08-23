@@ -3,6 +3,7 @@ package com.example.cloud_agent.service;
 import com.example.cloud_agent.enums.SessionEnum;
 import com.example.cloud_agent.model.Session;
 import com.example.cloud_agent.repo.SessionRepo;
+import com.example.cloud_agent.websocket.SessionWebSocketHandler;
 import org.springframework.data.redis.connection.stream.MapRecord;
 import org.springframework.data.redis.connection.stream.ReadOffset;
 import org.springframework.data.redis.connection.stream.StreamOffset;
@@ -19,10 +20,13 @@ public class SessionStatusListener {
 
     private final StringRedisTemplate redisTemplate;
     private final SessionRepo sessionRepository;
+    private final SessionWebSocketHandler webSocketHandler;
 
-    public SessionStatusListener(StringRedisTemplate redisTemplate, SessionRepo sessionRepository) {
+    public SessionStatusListener(StringRedisTemplate redisTemplate,SessionWebSocketHandler webSocketHandler, SessionRepo sessionRepository) {
         this.redisTemplate = redisTemplate;
         this.sessionRepository = sessionRepository;
+        this.webSocketHandler=webSocketHandler;
+
     }
 
     @PostConstruct
@@ -62,6 +66,10 @@ public class SessionStatusListener {
                         session.setStatus(SessionEnum.valueOf(status));
                         sessionRepository.save(session);
                         System.out.println("Updated session " + sessionId + " to " + status);
+                        webSocketHandler.sendEvent(session.getSessionId(),"{\"type\":\"status\",\"status\":\"" + status + "\"}");
+
+
+
                     } else {
                         System.out.println("No session found for id: " + sessionId);
                     }
