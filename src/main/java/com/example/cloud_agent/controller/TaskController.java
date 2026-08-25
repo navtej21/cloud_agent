@@ -2,15 +2,18 @@ package com.example.cloud_agent.controller;
 
 
 import com.example.cloud_agent.model.Session;
+import com.example.cloud_agent.model.TaskStatusResponse;
 import com.example.cloud_agent.models.TaskRequest;
 import com.example.cloud_agent.models.TaskResponse;
 import com.example.cloud_agent.repo.SessionRepo;
 import com.example.cloud_agent.service.TaskService;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
 
@@ -38,30 +41,48 @@ public class TaskController {
     @PostMapping("/tasks")
     public ResponseEntity<?> startTask(@RequestBody TaskRequest request, HttpServletRequest httpRequest) {
 
-        String clientId = httpRequest.getRemoteAddr();  // simplest identifier: caller's IP
-        String rateLimitKey = "rate_limit:" + clientId;
+       try{
 
-        Long currentCount = redisTemplate.opsForValue().increment(rateLimitKey);
+           String clientId = httpRequest.getRemoteAddr();  // simplest identifier: caller's IP
+           String rateLimitKey = "rate_limit:" + clientId;
 
-        if (currentCount == 1) {
-            // first request in this window — start the expiry clock
-            redisTemplate.expire(rateLimitKey, WINDOW_DURATION);
-        }
+           Long currentCount = redisTemplate.opsForValue().increment(rateLimitKey);
 
-        if (currentCount > MAX_REQUESTS_PER_WINDOW) {
-            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                    .body("Rate limit exceeded. Try again later.");
-        }
+           if (currentCount == 1) {
+               // first request in this window — start the expiry clock
+               redisTemplate.expire(rateLimitKey, WINDOW_DURATION);
+           }
 
-        String sessionId = taskService.startTask(request.task());
-        return ResponseEntity.ok(new TaskResponse(sessionId, "started"));
+           if (currentCount > MAX_REQUESTS_PER_WINDOW) {
+               return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                       .body("Rate limit exceeded. Try again later.");
+           }
+
+           String sessionId = taskService.startTask(request.task());
+           return ResponseEntity.ok(new TaskResponse(sessionId, "started"));
+
+
+       }
+
+       catch(RedisConnectionFailureException e){
+           return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+       }
     }
 
-    @GetMapping("/tasks/{sessionId}")
-    public Session getTaskById(@PathVariable String sessionId){
-        return sessionRepo.findBySessionId(sessionId).orElseThrow(()->{
-            return new RuntimeException("No Tasks Found");
-        });
+    @GetMapping("/task/{sessionId}")
+    public ResponseEntity<?> getTask(@PathVariable String sessionId){
+
+        Session session = sessionRepo.findBySessionId(sessionId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Session not found"));
+
+
+        TaskStatusResponse response=new TaskStatusResponse();
+        response.setStatus(session.getStatus().toString());
+        response.setSessionId(session.getSessionId());
+        response.setUpdatedAt(session.getUpdatedAt());
+        response.setCreatedAt(session.getCreatedAt());
+        response.setTask(session.getTaskDescription());
+        return ResponseEntity.ok().body(response);
     }
 }
 
