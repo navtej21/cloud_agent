@@ -39,6 +39,14 @@ def send_tool_request(tool_call_id, tool_name, tool_input):
     })
 
 
+
+def publish_status(session_id,session_status):
+    r.xadd("session_status",{
+        "session_id":session_id,
+        "status":session_status
+    })
+
+
 def wait_for_result(tool_call_id, timeout_seconds=30):
     global last_result_id
     start = time.time()
@@ -82,39 +90,43 @@ while True:
     task_message_id, sessionId, task = wait_for_task()
     print(f"Received task for session {sessionId}: {task}")
 
+    publish_status(session_id=sessionId, session_status="RUNNING")
+
     messages = [{"role": "user", "content": task}]
 
-    while True:
-        response = client.messages.create(
-            model="claude-sonnet-4-5",
-            max_tokens=1024,
-            tools=[read_file_tool, write_file_tool, bash_file_tool, edit_file_tool],
-            messages=messages
-        )
+    try:
+        while True:
+            response = client.messages.create(
+                model="claude-sonnet-4-5",
+                max_tokens=1024,
+                tools=[read_file_tool, write_file_tool, bash_file_tool, edit_file_tool],
+                messages=messages
+            )
 
-        if response.stop_reason == "end_turn":
-            for block in response.content:
-                if block.type == "text":
-                    print("Claude:", block.text)
-            break
+            if response.stop_reason == "end_turn":
+                for block in response.content:
+                    if block.type == "text":
+                        print("Claude:", block.text)
+                break
 
-        if response.stop_reason == "tool_use":
-            messages.append({"role": "assistant", "content": response.content})
+            if response.stop_reason == "tool_use":
+                messages.append({"role": "assistant", "content": response.content})
+                for block in response.content:
+                    if block.type == "tool_use":
+                        print(f"Requesting: {block.name} with {block.input}")
+                        send_tool_request(block.id, block.name, block.input)
+                        result = wait_for_result(block.id)
+                        print("Got result:", result)
+                        messages.append({
+                            "role": "user",
+                            "content": [{"type": "tool_result", "tool_use_id": block.id, "content": result}]
+                        })
 
-            for block in response.content:
-                if block.type == "tool_use":
-                    print(f"Requesting: {block.name} with {block.input}")
+        publish_status(session_id=sessionId, session_status="COMPLETED")
 
-                    send_tool_request(block.id, block.name, block.input)
-                    result = wait_for_result(block.id)
+    except Exception as e:
+        print(f"Task failed: {e}")
+        publish_status(session_id=sessionId, session_status="FAILED")
 
-                    print("Got result:", result)
-
-                    messages.append({
-                        "role": "user",
-                        "content": [{"type": "tool_result", "tool_use_id": block.id, "content": result}]
-                    })
-
-    # Task fully complete — now safe to acknowledge
     r.xack(STREAM_TASKS, TASK_GROUP_NAME, task_message_id)
     print(f"Task for session {sessionId} complete. Waiting for next task...")
